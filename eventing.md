@@ -25,7 +25,7 @@ See separate docs about [kperf eventing development](./eventing-dev.md).
 
 That functionality will be wrapped into `kperf eventing prepare` command in near future.
 
-Currently it needs ti be run from command line to dwpeloy test receiver.
+Currently it needs to be run from command line to deploy test receiver.
 
 ```
 source hack/setenv.sh
@@ -51,7 +51,7 @@ export REDIS_ADDRESS=<redis server address>
 
 That functionality will be wrapped into `kperf eventing prepare` command in near future.
 
-Currently establising connection for rereiving metrics and deploying driver jobs is done from command line.
+Currently establishing connection for retrieving metrics and deploying driver jobs is done from command line.
 
 #### Create tunnel to listen for metrics
 
@@ -64,7 +64,7 @@ kubectl -n <namespace> port-forward deployment/kperf-eventing-receiver 8001:8001
 Verify tunnel works
 
 ```
-curl http://localhost:8002/metrics
+curl http://localhost:8001/metrics
 ```
 
 
