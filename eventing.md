@@ -12,12 +12,12 @@ First copy and setup your environment
 cp hack/setenv.template.sh hack/setenv.sh
 ```
 
-Edit `config/setenv.sh` 
+Edit `hack/setenv.sh` 
 
 
 ## Building eventing support 
 
-See separate docs about [kpef eventing development](./eventing-dev.mg).
+See separate docs about [kperf eventing development](./eventing-dev.md).
 
 ## Running performance tests
 
