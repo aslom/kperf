@@ -49,7 +49,7 @@ export REDIS_ADDRESS=<redis server address>
 
 ### kperf measure
 
-That functionality will be wrapped into `kperf eventing prepare` command in near future.
+That functionality will be wrapped into `kperf eventing measure` command in near future.
 
 Currently establishing connection for retrieving metrics and deploying driver jobs is done from command line.
 
