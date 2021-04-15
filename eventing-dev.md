@@ -14,7 +14,7 @@ And push to registry:
 
 ```
 source hack/setenv.sh
-./docker_push.sh
+./hack/docker_push.sh
 ```
 
 To verify that build was successful run receiver, measure command, and driver locally:
