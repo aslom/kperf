@@ -128,7 +128,7 @@ That functionality will be wrapped into `kperf eventing cleanup` command in near
 Remove receiver deployment and driver jobs from Kubernetes namespace used for testing
 
 ```
-kubeclt delete deployment kperf-eventing-receiver
-kubeclt get jobs --no-headers=true | awk '/kperf-eventing-driver-job/{print $1}' | xargs  kubectl delete job
-kubeclt get pods --no-headers=true | awk '/kperf-eventing-driver-job/{print $1}' | xargs  kubectl delete pod
+kubectl delete deployment kperf-eventing-receiver
+kubectl get jobs --no-headers=true | awk '/kperf-eventing-driver-job/{print $1}' | xargs  kubectl delete job
+kubectl get pods --no-headers=true | awk '/kperf-eventing-driver-job/{print $1}' | xargs  kubectl delete pod
 ```
