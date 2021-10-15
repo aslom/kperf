@@ -25,12 +25,13 @@ See separate docs about [kperf eventing development](./eventing-dev.md).
 
 That functionality will be wrapped into `kperf eventing prepare` command in near future.
 
-Currently it needs to be run from command line to deploy test receiver.
+Currently it needs to be run from command line to deploy test receiver:
 
 ```
 source hack/setenv.sh
-export REPLICAS=1
-cat config/receiver.yaml | envsubst | kubectl apply -f -
+./kperf prepare --namespace=prefix=test --namespace-range=1,10 | kubectl apply -f -
+#./kperf prepare --kafka-source-topic=topic10 | kubectl apply -f -
+#cat config/receiver.yaml | envsubst | kubectl apply -f -
 ```
 
 To start receiver consuming events from Kafka:
@@ -91,7 +92,7 @@ NS=`kubectl config view --minify --output 'jsonpath={..namespace}'`
 export TARGET_URL=http://kperf-eventing-receiver.${NS}.svc.cluster.local
 ```
 
-The simple version should also work:
+The simple version of RURL should also work:
 
 ```
 export TARGET_URL=http://kperf-eventing-receiver
@@ -120,6 +121,22 @@ export DURATION=1
 export TEST_DURATION=5
 cat config/driver-job.yaml | envsubst | kubectl apply -f -
 ```
+
+To send to Kafka target:
+
+```
+export TARGET_URL=kafka://
+export KAFKA_BOOTSTRAP_SERVERS=<kafka bootstrap server>
+export KAFKA_TOPIC=<topic>
+export KAFKA_GROUP=<consumer group>
+```
+
+To send to Redis target:
+
+```
+export TARGET_URL=rediss://<rediss server>
+```
+
 
 ### kperf cleanup
 

@@ -12,26 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package eventing
+package driver
 
 import (
 	"testing"
 )
 
-func TestNewEventingPrepareCommand(t *testing.T) {
-	// t.Run("incompleted or wrong args for service generate", func(t *testing.T) {
-	// 	// client := k8sfake.NewSimpleClientset()
-	// 	// fakeServing := &servingv1fake.FakeServingV1{Fake: &client.Fake}
-	// 	// servingClient := func() (servingv1client.ServingV1Interface, error) {
-	// 	// 	return fakeServing, nil
-	// 	// }
-
-	// 	// p := &pkg.PerfParams{
-	// 	// 	ClientSet:        client,
-	// 	// 	NewServingClient: servingClient,
-	// 	// }
-	// 	//cmd := NewEventingPrepareCommand(p)
-
-	// })
-
+func TestGenerateEvent(t *testing.T) {
+	plan := SendEventsPlan{
+		senderName:      "test",
+		eventsPerSecond: 1,
+	}
+	g := NewEventGenerator(plan)
+	events := g.NextCloudEvents()
+	if len(events) != 1 {
+		t.Errorf("expected one event but got %d", len(events))
+	}
 }

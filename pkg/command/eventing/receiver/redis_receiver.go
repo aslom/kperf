@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,29 +53,39 @@ type redisEnvConfig struct {
 	Stream         string `envconfig:"REDIS_STREAM" default:"mystream"`
 	Group          string `envconfig:"REDIS_GROUP" default:"mygroup"`
 	//PodName        string
+	LogLevel string `envconfig:"REDIS_LOG_LEVEL" default:"info"`
 }
 
 type Adapter struct {
 	config *redisEnvConfig
 	//logger *zap.Logger
 	//client cloudevents.Client
-	source string
+	source   string
+	respChan chan ReceivedEventsStats
+	verbose  bool
 }
 
 func RedisReceive(respChan chan ReceivedEventsStats) {
 	ctx, _ := context.WithCancel(context.Background())
-	redisReceiver := NewAdapter(ctx) //, NewEnvConfig(), nil)
+	redisReceiver := NewAdapter(ctx, respChan) //, NewEnvConfig(), nil)
 	_ = redisReceiver.Start(ctx)
 
 }
 
-func NewAdapter(ctx context.Context) *Adapter {
+func NewAdapter(ctx context.Context, respChan chan ReceivedEventsStats) *Adapter {
 	//config := processed.(*Config)
 	var env redisEnvConfig
 	if err := envconfig.Process("", &env); err != nil {
 		log.Printf("[ERROR] Failed to process envirnoment variables: %s", err)
 		os.Exit(1)
 	}
+
+	decoded, err := base64.StdEncoding.DecodeString(env.TLSCertificate)
+	if err != nil {
+		fmt.Println("decode error:", err)
+		return nil
+	}
+	env.TLSCertificate = string(decoded)
 	// config := &Config{
 	// 	Address: "rediss://localhost:6379",
 	// 	//source:         RedisStreamSourceEventType,
@@ -86,7 +97,9 @@ func NewAdapter(ctx context.Context) *Adapter {
 	//logger, _ := zap.NewProduction()
 
 	return &Adapter{
-		config: &env,
+		config:   &env,
+		respChan: respChan,
+		verbose:  env.LogLevel != "info", //TODO use zap logger
 		//logger: logger,
 		//logger: logging.FromContext(ctx).Desugar().With(zap.String("stream", config.Stream)),
 		// client: ceClient,
@@ -118,7 +131,7 @@ func (a *Adapter) Start(ctx context.Context) error {
 		if strings.Contains(strings.ToLower(err.Error()), "no such key") || strings.Contains(strings.ToLower(err.Error()), "no longer exists") {
 			// stream does not exist, may have been deleted accidentally
 			//a.logger.Info("Creating stream and consumer group", zap.String("group", groupName))
-			log.Print("reating stream and consumer group", groupName)
+			log.Print("Creating stream and consumer group", groupName)
 			//XGROUP CREATE creates the stream automatically, if it doesn't exist, when MKSTREAM subcommand is specified as last argument
 			_, err := conn.Do("XGROUP", "CREATE", streamName, groupName, "$", "MKSTREAM")
 			if err != nil {
@@ -246,12 +259,16 @@ func (a *Adapter) processEntry(ctx context.Context, conn redis.Conn, streamName 
 	}
 
 	//a.logger.Info("Consumer read a message", zap.String("consumerName", consumerName))
-	log.Print("Consumer read a message", consumerName)
+	if a.verbose {
+		log.Print("Consumer read a message", consumerName)
+	}
 
 	// if result := a.client.Send(ctx, *event); !cloudevents.IsACK(result) { //  Event is lost
 	// 	a.logger.Error("Failed to send cloudevent", zap.Any("result", result))
 	// }
-	fmt.Printf("Received event %v", event.Data())
+	if a.verbose {
+		fmt.Printf("Received event %v", event.Data())
+	}
 
 	var fields []interface{} //string array with 2 elements (field and value)
 	if err = json.Unmarshal(event.Data(), &fields); err != nil {
@@ -269,10 +286,14 @@ func (a *Adapter) processEntry(ctx context.Context, conn redis.Conn, streamName 
 		attrib := strings.SplitN(pair, ":", 2)
 		eventAttribs[attrib[0]] = attrib[1]
 	}
-	fmt.Println("Event Original CE Timestamp: ", eventAttribs["time"]) //time in string
+	if a.verbose {
+		fmt.Println("Event Original CE Timestamp: ", eventAttribs["time"]) //time in string
+	}
 
-	timestamp := strings.Split(event.ID(), "-")[0]   //timestamp of xadd in first element
-	fmt.Println("Event XAdd Timestamp: ", timestamp) //unix time in string
+	timeUnix := strings.Split(event.ID(), "-")[0] //timestamp of xadd in first element
+	if a.verbose {
+		fmt.Println("Event XAdd timeUnix: ", timeUnix) //unix time in string
+	}
 
 	_, err = conn.Do("XACK", streamName, groupName, event.ID())
 	if err != nil {
@@ -284,8 +305,23 @@ func (a *Adapter) processEntry(ctx context.Context, conn redis.Conn, streamName 
 		}
 		return xreadID
 	}
+
+	// hardcoded for now
+	experimentId := "redisExpId" //eventAttribs["experimentid"]
+	setupId := "redisSetupId"    //eventAttribs["setupid"]
+	workloadId := "redisWkId"    //eventAttribs["workloadid"]
+	source := "redisSrcId"       //eventAttribs["source"]
+	eventId := event.ID()
+
+	latencySeconds := 0.0 //time.Since(timestamp).Seconds()
+	stats := ReceivedEventsStats{experimentId, setupId, workloadId, source, eventId, latencySeconds}
+	a.respChan <- stats
+
 	//a.logger.Info("Consumer acknowledged the message", zap.String("consumerName", consumerName))
-	log.Print("Consumer acknowledged the message", consumerName)
+
+	if a.verbose {
+		log.Print("Consumer acknowledged the message", consumerName)
+	}
 	return xreadID
 }
 
@@ -316,6 +352,7 @@ func (a *Adapter) newPool(address string) *redis.Pool {
 				}
 				c, err = redis.Dial("tcp", opt.Addr,
 					//redis.DialUsername(opt.Username), //username needs to be empty for successful redis connection (v8 go-redis issue)
+					redis.DialUsername(opt.Username),
 					redis.DialPassword(opt.Password),
 					redis.DialTLSConfig(&tls.Config{
 						RootCAs: roots,

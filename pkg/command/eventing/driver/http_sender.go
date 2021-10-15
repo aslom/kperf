@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -31,49 +30,64 @@ type HttpEventSender struct {
 
 func (s HttpEventSender) Send() EventsStats {
 	plan := s.Plan
+	g := NewEventGenerator(plan)
 	senderName := plan.senderName
-	values := map[string]string{"id": "1234668888888", "source": "323223232332909090", "type": "dev.knative.eventing.test.scaling", "timestamp": "12929299999992222"}
 	startTime := time.Now()
+	targetEndTime := startTime.Add(time.Duration(plan.durationSeconds) * time.Second)
 	errCount := 0
 	eventsSentCount := 0
 	var contentLenght int64 = 0
 	//TODO divide events to send into chunks/batches for perf impact
 	chunkSize := 1
 	chunkCount := 0
-	eventsToSend := int(float64(plan.eventsPerSecond) * plan.durationSeconds)
 	//TODO test HTTP 2 pipelining
-	//TODO test CLoudEvents batch
-	for i := 0; i < eventsToSend; i++ {
-		values["id"] = strconv.Itoa(i + 1)
-		event, err := json.Marshal(values)
-		if err != nil {
-			log.Fatal(err)
+	//TODO test CloudEvents batch
+	for {
+		//TODO switch between different types of events
+		events := g.NextCloudEventsAsMaps()
+		if events == nil {
+			break
 		}
-		req, err := http.NewRequest("POST", plan.targetUrl, bytes.NewBuffer(event))
-		if err != nil {
-			log.Println(err)
-		}
-		resp, err := s.http.RoundTrip(req)
-		eventsSentCount++
-		// TODO check response HTTP code?
-		// count successes and errors
-		if err != nil {
-			errCount++
-		} else {
-			contentLenght += resp.ContentLength
-		}
-		chunkCount++
-		if chunkCount >= chunkSize {
-			chunkCount = 0
-			// sleep to keep events/second goal
-			//durationSoFar := time.Since(start)
+		for _, eventMap := range events {
+			event, err := json.Marshal(eventMap)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Sending to %s event %s\n", plan.targetUrl, event)
+			req, err := http.NewRequest("POST", plan.targetUrl, bytes.NewBuffer(event))
+			if err != nil {
+				log.Println(err)
+			}
+			req.Header.Set("Content-Type", "application/cloudevents+json; charset=UTF-8")
+			resp, err := s.http.RoundTrip(req)
+			// TODO check response HTTP code?
+			// count successes and errors
+			if err != nil {
+				errCount++
+			} else {
+				eventsSentCount++
+				contentLenght += resp.ContentLength
+			}
+			chunkCount++
+			if chunkCount >= chunkSize {
+				chunkCount = 0
+				// sleep to keep events/second goal
+				//durationSoFar := time.Since(start)
+			}
+			eventsToSend := g.EventRemainingToSend()
+			soFarTime := time.Now()
+			if eventsToSend > 0 && soFarTime.Before(targetEndTime) {
+				remainingDuration := targetEndTime.Sub(soFarTime)
+				sleepDuration := remainingDuration / time.Duration(eventsToSend)
+				//fmt.Printf("sending sleeping %s\n", sleepDuration)
+				time.Sleep(sleepDuration)
+
+			}
 
 		}
 	}
 	// sleep for remaining time to reach events/second
 	endTime := time.Now()
-	targetEndTime := startTime.Add(time.Duration(plan.durationSeconds) * time.Second)
-	//duration := time.Since(start)
 	duration := endTime.Sub(startTime)
 	if endTime.Before(targetEndTime) {
 		sleepDuration := targetEndTime.Sub(endTime)

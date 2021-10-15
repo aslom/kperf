@@ -18,8 +18,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kperf-eventing-receiver
+  namespace: {{.NAMESPACE}}
 spec:
-  replicas: ${REPLICAS}
+  replicas: "{{.REPLICAS}}"
   selector:
     matchLabels: &labels
       app: kperf-eventing-receiver
@@ -29,46 +30,35 @@ spec:
     spec:
       containers:
         - name: kperf-eventing-receiver
-          image: ${IMAGE_NAME}
+          image: {{.IMAGE_NAME}}
           imagePullPolicy: Always
           command: ["/kperf"]
           args: [ "eventing", "receiver" ]
           env:
           - name: KAFKA_BOOTSTRAP_SERVERS
-            value: "${KAFKA_BOOTSTRAP_SERVERS}"
-          - name: KAFKA_TOPIC
-            value: "${KAFKA_TOPIC}"
-          - name: KAFKA_GROUP
-            value: "${KAFKA_GROUP}"
-          - name: KAFKA_NET_TLS_ENABLE
-            value: "${KAFKA_NET_TLS_ENABLE}"
-          - name: KAFKA_NET_SASL_ENABLE
-            value: "${KAFKA_NET_SASL_ENABLE}"
-          - name: KAFKA_NET_SASL_USER
-            value: "${KAFKA_NET_SASL_USER}"
-          - name: KAFKA_NET_SASL_PASSWORD
-            value: "${KAFKA_NET_SASL_PASSWORD}"
+            value: "{{.KAFKA_BOOTSTRAP_SERVERS}}"
           - name: REDIS_ADDRESS
-            value: "${REDIS_ADDRESS}"
+            value: "{{.REDIS_ADDRESS}}"
+          - name: EXPERIMENT_ID
+            value: "{{.EXPERIMENT_ID}}"
           - name: SLEEP_SECONDS
-            value: "${SLEEP_SECONDS}"
-          - name: BUCKET_LIST
-            value: "${BUCKET_LIST}"
-          resources:
-            requests:
-              cpu: "2"
-              memory: "8G"
-            limits:
-              cpu: "2"
-              memory: "8G"
+            value: "{{.SLEEP_SECONDS}}"
           ports:
           - containerPort: 8001
             name: http
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1024Mi"
+              cpu: "2000m"
 ---
 kind: Service
 apiVersion: v1
 metadata:
   name: kperf-eventing-receiver
+  namespace: {{.NAMESPACE}}
   annotations:
       prometheus.io/scrape: 'true'
       prometheus.io/port:   '8001'
